@@ -142,14 +142,34 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
         emit Withdrawn(_msgSender(), destination_, token_, amount_);
     }
 
+    /// @dev withdraw NFT 721 from contract
+    /// @param token_ address of the token, use address(0) to withdraw gas token
+    /// @param destination_ recipient address to receive the fund
+    /// @param tokenId_ ID of NFT to withdraw
+    function withdrawNft721(
+        address token_,
+        address destination_,
+        uint256 tokenId_
+    ) public onlyOwner {
+        require(
+            destination_ != address(0),
+            "C98Vault: destination is zero address"
+        );
+
+        IERC721(token_).transferFrom(address(this), destination_, tokenId_);
+
+        emit Withdrawn(_msgSender(), destination_, token_, 1);
+    }
+
     /// @dev withdraw NFT from contract
     /// @param token_ address of the token, use address(0) to withdraw gas token
     /// @param destination_ recipient address to receive the fund
     /// @param tokenId_ ID of NFT to withdraw
-    function withdrawNft(
+    function withdrawNft1155(
         address token_,
         address destination_,
-        uint256 tokenId_
+        uint256 tokenId_,
+        uint256 amount
     ) public onlyOwner {
         require(
             destination_ != address(0),
