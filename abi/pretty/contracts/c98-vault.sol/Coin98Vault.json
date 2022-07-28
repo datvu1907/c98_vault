@@ -1,0 +1,23 @@
+[
+  "event AdminAdded(address indexed)",
+  "event AdminRemoved(address indexed)",
+  "event EventCreated(uint256,tuple(uint256,bytes32,address,address,uint8))",
+  "event EventUpdated(uint256,uint8)",
+  "event OwnershipTransferred(address indexed,address indexed)",
+  "event Redeemed(uint256,uint256,address indexed,address indexed,uint256,address indexed,uint256)",
+  "event Withdrawn(address indexed,address indexed,address indexed,uint256)",
+  "function admins() view returns (address[])",
+  "function eventInfo(uint256) view returns (tuple(uint256,bytes32,address,address,uint8))",
+  "function factory() view returns (address)",
+  "function init()",
+  "function isRedeemed(uint256,uint256) view returns (bool)",
+  "function onERC1155BatchReceived(address,address,uint256[],uint256[],bytes) returns (bytes4)",
+  "function onERC1155Received(address,address,uint256,uint256,bytes) returns (bytes4)",
+  "function onERC721Received(address,address,uint256,bytes) returns (bytes4)",
+  "function owner() view returns (address)",
+  "function redeemERC1155(uint256,uint256,address,uint256,uint256,bytes32[]) payable",
+  "function redeemERC721(uint256,uint256,address,uint256,uint256,bytes32[]) payable",
+  "function renounceOwnership()",
+  "function supportsInterface(bytes4) view returns (bool)",
+  "function transferOwnership(address)"
+]

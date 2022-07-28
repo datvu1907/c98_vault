@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.1;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/proxy/Clones.sol";
 import "./abstract/Payable.sol";
+import "./abstract/OwnableUpgradeable.sol";
 import "./c98-vault.sol";
+import "hardhat/console.sol";
 
 interface IVaultConfig {
     function fee() external view returns (uint256);
@@ -81,12 +82,12 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
         returns (address)
     {
         address vault = Clones.cloneDeterministic(_implementation, salt_);
-
+        console.log(vault);
         ICoin98Vault(vault).init();
         Ownable(vault).transferOwnership(owner_);
-
         _vaults.push(address(vault));
         emit Created(address(vault));
+        return address(vault);
     }
 
     function getVaultAddress(bytes32 salt_) public view returns (address) {

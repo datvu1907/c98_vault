@@ -1,20 +1,28 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.1;
-// import "./abstract/Initializable.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./c98-vault-factory.sol";
+import "./abstract/OwnableUpgradeable.sol";
+import "hardhat/console.sol";
 
 interface ICoin98Vault {
     function init() external virtual;
 }
 
-contract Coin98Vault is Ownable, ERC721Holder, ERC1155Holder {
+contract Coin98Vault is
+    ICoin98Vault,
+    OwnableUpgradeable,
+    ERC721Holder,
+    ERC1155Holder
+{
+    using SafeERC20 for IERC20;
     address private _factory;
     address[] private _admins;
     mapping(address => bool) private _adminStatuses;
@@ -37,7 +45,6 @@ contract Coin98Vault is Ownable, ERC721Holder, ERC1155Holder {
         uint256 index,
         address indexed recipient,
         address indexed receivingToken,
-        uint256 receivingTokenAmount,
         uint256 receivingTokenId,
         address indexed sendingToken,
         uint256 sendingTokenAmount
@@ -92,11 +99,16 @@ contract Coin98Vault is Ownable, ERC721Holder, ERC1155Holder {
         return _eventRedemptions[eventId_][index_];
     }
 
+    /// @dev Initial vault
+    function init() external override initializer {
+        __Ownable_init();
+        _factory = msg.sender;
+    }
+
     function redeemERC1155(
         uint256 eventId_,
         uint256 index_,
         address recipient_,
-        uint256 receivingAmount_,
         uint256 tokenId_,
         uint256 sendingAmount_,
         bytes32[] calldata proofs
@@ -116,12 +128,7 @@ contract Coin98Vault is Ownable, ERC721Holder, ERC1155Holder {
         require(recipient_ != address(0), "C98Vault: Invalid schedule");
 
         bytes32 node = keccak256(
-            abi.encodePacked(
-                index_,
-                recipient_,
-                receivingAmount_,
-                sendingAmount_
-            )
+            abi.encodePacked(index_, recipient_, tokenId_, sendingAmount_)
         );
         require(
             MerkleProof.verify(proofs, eventData.merkleRoot, node),
@@ -134,10 +141,7 @@ contract Coin98Vault is Ownable, ERC721Holder, ERC1155Holder {
             tokenId_
         );
 
-        require(
-            receivingAmount_ <= availableAmount,
-            "C98Vault: Insufficient token"
-        );
+        require(availableAmount > 0, "C98Vault: Insufficient token");
 
         _setRedemption(eventId_, index_);
         if (fee > 0) {
@@ -160,7 +164,7 @@ contract Coin98Vault is Ownable, ERC721Holder, ERC1155Holder {
             address(this),
             recipient_,
             tokenId_,
-            receivingAmount_,
+            1,
             ""
         );
 
@@ -169,7 +173,6 @@ contract Coin98Vault is Ownable, ERC721Holder, ERC1155Holder {
             index_,
             recipient_,
             eventData.receivingToken,
-            receivingAmount_,
             tokenId_,
             eventData.sendingToken,
             sendingAmount_
@@ -199,7 +202,7 @@ contract Coin98Vault is Ownable, ERC721Holder, ERC1155Holder {
         require(recipient_ != address(0), "C98Vault: Invalid schedule");
 
         bytes32 node = keccak256(
-            abi.encodePacked(index_, recipient_, 1, sendingAmount_)
+            abi.encodePacked(index_, recipient_, tokenId_, sendingAmount_)
         );
         require(
             MerkleProof.verify(proofs, eventData.merkleRoot, node),
@@ -207,7 +210,7 @@ contract Coin98Vault is Ownable, ERC721Holder, ERC1155Holder {
         );
         require(!isRedeemed(eventId_, index_), "C98Vault: Redeemed");
 
-        address tokenOwner = IERC1155(eventData.receivingToken).ownerOf(
+        address tokenOwner = IERC721(eventData.receivingToken).ownerOf(
             tokenId_
         );
 
@@ -247,5 +250,86 @@ contract Coin98Vault is Ownable, ERC721Holder, ERC1155Holder {
             eventData.sendingToken,
             sendingAmount_
         );
+    }
+
+    /// @dev create an event to specify how user can claim their token
+    /// @param eventId_ event ID
+    /// @param timestamp_ when the token will be available for redemption
+    /// @param receivingToken_ token user will be receiving, mandatory
+    /// @param sendingToken_ token user need to send in order to receive *receivingToken_*
+    function createEvent(
+        uint256 eventId_,
+        uint256 timestamp_,
+        bytes32 merkleRoot_,
+        address receivingToken_,
+        address sendingToken_
+    ) public onlyAdmin {
+        require(
+            _eventDatas[eventId_].timestamp == 0,
+            "C98Vault: Event existed"
+        );
+        require(timestamp_ != 0, "C98Vault: Invalid timestamp");
+        _eventDatas[eventId_].timestamp = timestamp_;
+        _eventDatas[eventId_].merkleRoot = merkleRoot_;
+        _eventDatas[eventId_].receivingToken = receivingToken_;
+        _eventDatas[eventId_].sendingToken = sendingToken_;
+        _eventDatas[eventId_].isActive = 1;
+
+        emit EventCreated(eventId_, _eventDatas[eventId_]);
+    }
+
+    /// @dev enable/disable a particular event
+    /// @param eventId_ event ID
+    /// @param isActive_ zero to inactive, any number to active
+    function setEventStatus(uint256 eventId_, uint8 isActive_)
+        public
+        onlyAdmin
+    {
+        require(
+            _eventDatas[eventId_].timestamp != 0,
+            "C98Vault: Invalid event"
+        );
+        _eventDatas[eventId_].isActive = isActive_;
+
+        emit EventUpdated(eventId_, isActive_);
+    }
+
+    /// @dev add/remove admin of the vault.
+    /// @param nAdmins_ list to address to update
+    /// @param nStatuses_ address with same index will be added if true, or remove if false
+    /// admins will have access to all tokens in the vault, and can define vesting schedule
+    function setAdmins(address[] memory nAdmins_, bool[] memory nStatuses_)
+        public
+        onlyOwner
+    {
+        require(nAdmins_.length != 0, "C98Vault: Empty arguments");
+        require(nStatuses_.length != 0, "C98Vault: Empty arguments");
+        require(
+            nAdmins_.length == nStatuses_.length,
+            "C98Vault: Invalid arguments"
+        );
+
+        uint256 i;
+        for (i = 0; i < nAdmins_.length; i++) {
+            address nAdmin = nAdmins_[i];
+            if (nStatuses_[i]) {
+                if (!_adminStatuses[nAdmin]) {
+                    _admins.push(nAdmin);
+                    _adminStatuses[nAdmin] = nStatuses_[i];
+                    emit AdminAdded(nAdmin);
+                }
+            } else {
+                uint256 j;
+                for (j = 0; j < _admins.length; j++) {
+                    if (_admins[j] == nAdmin) {
+                        _admins[j] = _admins[_admins.length - 1];
+                        _admins.pop();
+                        delete _adminStatuses[nAdmin];
+                        emit AdminRemoved(nAdmin);
+                        break;
+                    }
+                }
+            }
+        }
     }
 }

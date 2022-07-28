@@ -1,0 +1,5 @@
+[
+  "function fee() view returns (uint256)",
+  "function gasLimit() view returns (uint256)",
+  "function ownerReward() view returns (uint256)"
+]
