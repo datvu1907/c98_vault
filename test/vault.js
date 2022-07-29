@@ -8,10 +8,17 @@ const web3 = require("web3-utils");
 
 const provider = waffle.provider;
 
-function Schedule(index, user, recieveTokenId, sendingAmount) {
+function Schedule(
+  index,
+  user,
+  recieveTokenId,
+  recieveTokenAmount,
+  sendingAmount
+) {
   this.index = index;
   this.user = user;
   this.recieveTokenId = recieveTokenId;
+  this.recieveTokenAmount = recieveTokenAmount;
   this.sendingAmount = sendingAmount;
 }
 async function increaseTime(duration) {
@@ -55,14 +62,14 @@ beforeEach(async function () {
   vaultFactory = await VaultFactory.deploy(vault.address);
 
   listSchedule = [
-    new Schedule(1, user1.address, 1, 120),
-    new Schedule(2, user2.address, 2, 120),
-    new Schedule(3, user3.address, 3, 120),
-    new Schedule(4, user4.address, 4, 120),
-    new Schedule(5, user5.address, 5, 120),
-    new Schedule(6, user6.address, 6, 120),
-    new Schedule(7, user7.address, 7, 120),
-    new Schedule(8, user8.address, 8, 120),
+    new Schedule(1, user1.address, 1, 1, 120),
+    new Schedule(2, user2.address, 2, 1, 120),
+    new Schedule(3, user3.address, 3, 1, 120),
+    new Schedule(4, user4.address, 4, 1, 120),
+    new Schedule(5, user5.address, 5, 1, 120),
+    new Schedule(6, user6.address, 6, 1, 120),
+    new Schedule(7, user7.address, 7, 1, 120),
+    new Schedule(8, user8.address, 8, 1, 120),
   ];
   await erc20token.connect(admin).mint(user1.address, 1000);
 });
@@ -91,20 +98,15 @@ describe("C98 vault", function () {
         item.index,
         item.user,
         item.recieveTokenId,
+        item.recieveTokenAmount,
         item.sendingAmount
       )
     );
     const tree = new MerkleTree(leaves, keccak256, { sort: true });
     const root = tree.getHexRoot();
 
-    const leaf = web3.soliditySha3(1, user1.address, 1, 120);
+    const leaf = web3.soliditySha3(1, user1.address, 1, 1, 120);
     const proof = tree.getHexProof(leaf);
-
-    const proofArray = proof.map((item) => item);
-    console.log(root);
-    console.log(leaf);
-    console.log(proofArray);
-
     console.log(tree.verify(proof, leaf, root));
 
     const NewVault = await ethers.getContractFactory("Coin98Vault");
@@ -112,14 +114,12 @@ describe("C98 vault", function () {
 
     await newVault
       .connect(admin)
-      .createEvent(1, Date.now(), root, nft1155.address, erc20token.address);
+      .createEvent(1, Date.now(), root, nft1155.address, erc20token.address, 1);
     await newVault.connect(admin).setEventStatus(1, 1);
     await nft1155.connect(admin).mint(receipt.logs[0].address, 1, 100, "0x");
     await erc20token.connect(user1).approve(receipt.logs[0].address, 200);
     await increaseTime(Date.now() + 3600);
-    await newVault
-      .connect(user1)
-      .redeemERC1155(1, 1, user1.address, 1, 120, proof);
+    await newVault.connect(user1).redeem(1, 1, user1.address, 1, 1, 120, proof);
 
     // check amount nft of user
     expect(await nft1155.connect(admin).balanceOf(user1.address, 1)).to.equals(
@@ -154,13 +154,14 @@ describe("C98 vault", function () {
         item.index,
         item.user,
         item.recieveTokenId,
+        item.recieveTokenAmount,
         item.sendingAmount
       )
     );
     const tree = new MerkleTree(leaves, keccak256, { sort: true });
     const root = tree.getHexRoot();
 
-    const leaf = web3.soliditySha3(1, user1.address, 1, 120);
+    const leaf = web3.soliditySha3(1, user1.address, 1, 1, 120);
     const proof = tree.getHexProof(leaf);
 
     console.log(tree.verify(proof, leaf, root));
@@ -170,14 +171,13 @@ describe("C98 vault", function () {
 
     await newVault
       .connect(admin)
-      .createEvent(1, Date.now(), root, nft721.address, erc20token.address);
+      .createEvent(1, Date.now(), root, nft721.address, erc20token.address, 0);
     await newVault.connect(admin).setEventStatus(1, 1);
     await nft721.connect(admin).mint(receipt.logs[0].address, 1);
     await erc20token.connect(user1).approve(receipt.logs[0].address, 200);
     await increaseTime(Date.now() + 3600);
-    await newVault
-      .connect(user1)
-      .redeemERC721(1, 1, user1.address, 1, 120, proof);
+    await newVault.connect(user1).redeem(1, 1, user1.address, 1, 1, 120, proof);
+
     // check amount nft of user
     expect(await nft721.connect(admin).balanceOf(user1.address)).to.equals(1);
     // check amount of token in vault

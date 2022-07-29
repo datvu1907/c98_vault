@@ -35,6 +35,11 @@ contract Coin98Vault is
         address receivingToken;
         address sendingToken;
         uint8 isActive;
+        NftType nftType;      
+    }
+    enum NftType{
+        Nft721,
+        Nft1155
     }
     event AdminAdded(address indexed admin);
     event AdminRemoved(address indexed admin);
@@ -46,8 +51,10 @@ contract Coin98Vault is
         address indexed recipient,
         address indexed receivingToken,
         uint256 receivingTokenId,
+        uint256 receivingTokenAmount,
         address indexed sendingToken,
         uint256 sendingTokenAmount
+    
     );
     event Withdrawn(
         address indexed owner,
@@ -104,12 +111,21 @@ contract Coin98Vault is
         __Ownable_init();
         _factory = msg.sender;
     }
-
-    function redeemERC1155(
+    
+    /// @dev claim the token which user is eligible from schedule
+    /// @param eventId_ event ID
+    /// @param index_ index of redemption pre-assigned to user
+    /// @param recipient_ index of redemption pre-assigned to user
+    /// @param tokenId_ tokenId of nft
+    /// @param receivingAmount_ amount of *receivingToken* user is eligible to redeem
+    /// @param sendingAmount_ amount of *sendingToken* user must send the contract to get *receivingToken*
+    /// @param proofs additional data to validate that the inputted information is valid
+    function redeem(
         uint256 eventId_,
-        uint256 index_,
+        uint256 index_,          
         address recipient_,
         uint256 tokenId_,
+        uint256 receivingAmount_,
         uint256 sendingAmount_,
         bytes32[] calldata proofs
     ) public payable {
@@ -128,21 +144,20 @@ contract Coin98Vault is
         require(recipient_ != address(0), "C98Vault: Invalid schedule");
 
         bytes32 node = keccak256(
-            abi.encodePacked(index_, recipient_, tokenId_, sendingAmount_)
+            abi.encodePacked(index_, recipient_, tokenId_, receivingAmount_, sendingAmount_)
         );
         require(
             MerkleProof.verify(proofs, eventData.merkleRoot, node),
             "C98Vault: Invalid proof"
         );
         require(!isRedeemed(eventId_, index_), "C98Vault: Redeemed");
-
-        uint256 availableAmount = IERC1155(eventData.receivingToken).balanceOf(
-            address(this),
-            tokenId_
-        );
-
-        require(availableAmount > 0, "C98Vault: Insufficient token");
-
+        if(eventData.nftType == NftType.Nft1155){
+            uint256 availableAmount = IERC1155(eventData.receivingToken).balanceOf(address(this),tokenId_);
+            require(availableAmount > 0, "C98Vault: Insufficient token");
+        }else{
+            address tokenOwner = IERC721(eventData.receivingToken).ownerOf(tokenId_);
+            require(tokenOwner == address(this), "C98Vault: Invalid token owner");
+        }
         _setRedemption(eventId_, index_);
         if (fee > 0) {
             uint256 reward = IVaultConfig(_factory).ownerReward();
@@ -160,13 +175,12 @@ contract Coin98Vault is
                 sendingAmount_
             );
         }
-        IERC1155(eventData.receivingToken).safeTransferFrom(
-            address(this),
-            recipient_,
-            tokenId_,
-            1,
-            ""
-        );
+        if(eventData.nftType == NftType.Nft1155){
+            IERC1155(eventData.receivingToken).safeTransferFrom(address(this), recipient_, tokenId_,receivingAmount_,"");
+        }else{
+            IERC721(eventData.receivingToken).safeTransferFrom(address(this), recipient_, tokenId_, "");
+        }
+      
 
         emit Redeemed(
             eventId_,
@@ -174,79 +188,7 @@ contract Coin98Vault is
             recipient_,
             eventData.receivingToken,
             tokenId_,
-            eventData.sendingToken,
-            sendingAmount_
-        );
-    }
-
-    function redeemERC721(
-        uint256 eventId_,
-        uint256 index_,
-        address recipient_,
-        uint256 tokenId_,
-        uint256 sendingAmount_,
-        bytes32[] calldata proofs
-    ) public payable {
-        uint256 fee = IVaultConfig(_factory).fee();
-        uint256 gasLimit = IVaultConfig(_factory).gasLimit();
-        if (fee > 0) {
-            require(msg.value == fee, "C98Vault: Invalid fee");
-        }
-
-        EventData storage eventData = _eventDatas[eventId_];
-        require(eventData.isActive > 0, "C98Vault: Invalid event");
-        require(
-            eventData.timestamp <= block.timestamp,
-            "C98Vault: Schedule locked"
-        );
-        require(recipient_ != address(0), "C98Vault: Invalid schedule");
-
-        bytes32 node = keccak256(
-            abi.encodePacked(index_, recipient_, tokenId_, sendingAmount_)
-        );
-        require(
-            MerkleProof.verify(proofs, eventData.merkleRoot, node),
-            "C98Vault: Invalid proof"
-        );
-        require(!isRedeemed(eventId_, index_), "C98Vault: Redeemed");
-
-        address tokenOwner = IERC721(eventData.receivingToken).ownerOf(
-            tokenId_
-        );
-
-        require(tokenOwner == address(this), "C98Vault: Invalid token owner");
-
-        _setRedemption(eventId_, index_);
-        if (fee > 0) {
-            uint256 reward = IVaultConfig(_factory).ownerReward();
-            uint256 finalFee = fee - reward;
-            (bool success, bytes memory data) = _factory.call{
-                value: finalFee,
-                gas: gasLimit
-            }("");
-            require(success, "C98Vault: Unable to charge fee");
-        }
-        if (sendingAmount_ > 0) {
-            IERC20(eventData.sendingToken).safeTransferFrom(
-                _msgSender(),
-                address(this),
-                sendingAmount_
-            );
-        }
-
-        IERC721(eventData.receivingToken).safeTransferFrom(
-            address(this),
-            recipient_,
-            tokenId_,
-            ""
-        );
-
-        emit Redeemed(
-            eventId_,
-            index_,
-            recipient_,
-            eventData.receivingToken,
-            tokenId_,
+            receivingAmount_,
             eventData.sendingToken,
             sendingAmount_
         );
@@ -262,7 +204,8 @@ contract Coin98Vault is
         uint256 timestamp_,
         bytes32 merkleRoot_,
         address receivingToken_,
-        address sendingToken_
+        address sendingToken_,
+        NftType nftType_
     ) public onlyAdmin {
         require(
             _eventDatas[eventId_].timestamp == 0,
@@ -274,6 +217,7 @@ contract Coin98Vault is
         _eventDatas[eventId_].receivingToken = receivingToken_;
         _eventDatas[eventId_].sendingToken = sendingToken_;
         _eventDatas[eventId_].isActive = 1;
+        _eventDatas[eventId_].nftType = nftType_;
 
         emit EventCreated(eventId_, _eventDatas[eventId_]);
     }
