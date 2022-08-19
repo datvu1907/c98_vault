@@ -12,12 +12,12 @@ import "./c98-vault-factory.sol";
 import "./abstract/OwnableUpgradeable.sol";
 import "hardhat/console.sol";
 
-interface ICoin98Vault {
+interface INFTVault {
     function init() external virtual;
 }
 
-contract Coin98Vault is
-    ICoin98Vault,
+contract NFTVault is
+    INFTVault,
     OwnableUpgradeable,
     ERC721Holder,
     ERC1155Holder

@@ -15,7 +15,7 @@ interface IVaultConfig {
     function ownerReward() external view returns (uint256);
 }
 
-contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
+contract NFTVaultFactory is Ownable, Payable, IVaultConfig {
     using SafeERC20 for IERC20;
 
     uint256 private _fee;
@@ -83,7 +83,7 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
     {
         address vault = Clones.cloneDeterministic(_implementation, salt_);
         console.log(vault);
-        ICoin98Vault(vault).init();
+        INFTVault(vault).init();
         Ownable(vault).transferOwnership(owner_);
         _vaults.push(address(vault));
         emit Created(address(vault));
@@ -177,7 +177,7 @@ contract Coin98VaultFactory is Ownable, Payable, IVaultConfig {
             "C98Vault: destination is zero address"
         );
 
-        IERC721(token_).transferFrom(address(this), destination_, tokenId_);
+        IERC1155(token_).safeTransferFrom(address(this), destination_, tokenId_, amount, "");
 
         emit Withdrawn(_msgSender(), destination_, token_, 1);
     }
