@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "./c98-vault-factory.sol";
+import "./nft-vault-factory.sol";
 import "./abstract/OwnableUpgradeable.sol";
 import "hardhat/console.sol";
 
@@ -132,31 +132,31 @@ contract NFTVault is
         uint256 fee = IVaultConfig(_factory).fee();
         uint256 gasLimit = IVaultConfig(_factory).gasLimit();
         if (fee > 0) {
-            require(msg.value == fee, "C98Vault: Invalid fee");
+            require(msg.value == fee, "NFTVault: Invalid fee");
         }
 
         EventData storage eventData = _eventDatas[eventId_];
-        require(eventData.isActive > 0, "C98Vault: Invalid event");
+        require(eventData.isActive > 0, "NFTVault: Invalid event");
         require(
             eventData.timestamp <= block.timestamp,
-            "C98Vault: Schedule locked"
+            "NFTVault: Schedule locked"
         );
-        require(recipient_ != address(0), "C98Vault: Invalid schedule");
+        require(recipient_ != address(0), "NFTVault: Invalid schedule");
 
         bytes32 node = keccak256(
             abi.encodePacked(index_, recipient_, tokenId_, receivingAmount_, sendingAmount_)
         );
         require(
             MerkleProof.verify(proofs, eventData.merkleRoot, node),
-            "C98Vault: Invalid proof"
+            "NFTVault: Invalid proof"
         );
-        require(!isRedeemed(eventId_, index_), "C98Vault: Redeemed");
+        require(!isRedeemed(eventId_, index_), "NFTVault: Redeemed");
         if(eventData.nftType == NftType.Nft1155){
             uint256 availableAmount = IERC1155(eventData.receivingToken).balanceOf(address(this),tokenId_);
-            require(availableAmount > 0, "C98Vault: Insufficient token");
+            require(availableAmount > 0, "NFTVault: Insufficient token");
         }else{
             address tokenOwner = IERC721(eventData.receivingToken).ownerOf(tokenId_);
-            require(tokenOwner == address(this), "C98Vault: Invalid token owner");
+            require(tokenOwner == address(this), "NFTVault: Invalid token owner");
         }
         _setRedemption(eventId_, index_);
         if (fee > 0) {
@@ -166,7 +166,7 @@ contract NFTVault is
                 value: finalFee,
                 gas: gasLimit
             }("");
-            require(success, "C98Vault: Unable to charge fee");
+            require(success, "NFTVault: Unable to charge fee");
         }
         if (sendingAmount_ > 0) {
             IERC20(eventData.sendingToken).safeTransferFrom(
@@ -209,9 +209,9 @@ contract NFTVault is
     ) public onlyAdmin {
         require(
             _eventDatas[eventId_].timestamp == 0,
-            "C98Vault: Event existed"
+            "NFTVault: Event existed"
         );
-        require(timestamp_ != 0, "C98Vault: Invalid timestamp");
+        require(timestamp_ != 0, "NFTVault: Invalid timestamp");
         _eventDatas[eventId_].timestamp = timestamp_;
         _eventDatas[eventId_].merkleRoot = merkleRoot_;
         _eventDatas[eventId_].receivingToken = receivingToken_;
@@ -231,7 +231,7 @@ contract NFTVault is
     {
         require(
             _eventDatas[eventId_].timestamp != 0,
-            "C98Vault: Invalid event"
+            "NFTVault: Invalid event"
         );
         _eventDatas[eventId_].isActive = isActive_;
 
@@ -246,11 +246,11 @@ contract NFTVault is
         public
         onlyOwner
     {
-        require(nAdmins_.length != 0, "C98Vault: Empty arguments");
-        require(nStatuses_.length != 0, "C98Vault: Empty arguments");
+        require(nAdmins_.length != 0, "NFTVault: Empty arguments");
+        require(nStatuses_.length != 0, "NFTVault: Empty arguments");
         require(
             nAdmins_.length == nStatuses_.length,
-            "C98Vault: Invalid arguments"
+            "NFTVault: Invalid arguments"
         );
 
         uint256 i;

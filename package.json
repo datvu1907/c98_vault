@@ -19,6 +19,7 @@
     "@nomiclabs/hardhat-waffle": "^2.0.3",
     "@openzeppelin/contracts": "^4.7.1",
     "@openzeppelin/test-helpers": "^0.5.15",
+    "dotenv": "^16.0.3",
     "hardhat-abi-exporter": "^2.10.0",
     "keccak256": "^1.0.6",
     "merkletreejs": "^0.2.32",

@@ -4,7 +4,7 @@ pragma solidity ^0.8.1;
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "./abstract/Payable.sol";
 import "./abstract/OwnableUpgradeable.sol";
-import "./c98-vault.sol";
+import "./nft-vault.sol";
 import "hardhat/console.sol";
 
 interface IVaultConfig {
@@ -102,7 +102,7 @@ contract NFTVaultFactory is Ownable, Payable, IVaultConfig {
     /// @param fee_ amount of gas token to charge for every redeem. can be ZERO to disable protocol fee
     /// @param reward_ amount of gas token to incentive vault owner. this reward will be deduce from protocol fee
     function setFee(uint256 fee_, uint256 reward_) public onlyOwner {
-        require(fee_ >= reward_, "C98Vault: Invalid reward amount");
+        require(fee_ >= reward_, "NFTVault: Invalid reward amount");
 
         _fee = fee_;
         _ownerReward = reward_;
@@ -122,7 +122,7 @@ contract NFTVaultFactory is Ownable, Payable, IVaultConfig {
     ) public onlyOwner {
         require(
             destination_ != address(0),
-            "C98Vault: Destination is zero address"
+            "NFTVault: Destination is zero address"
         );
 
         uint256 availableAmount;
@@ -132,7 +132,7 @@ contract NFTVaultFactory is Ownable, Payable, IVaultConfig {
             availableAmount = IERC20(token_).balanceOf(address(this));
         }
 
-        require(amount_ <= availableAmount, "C98Vault: Not enough balance");
+        require(amount_ <= availableAmount, "NFTVault: Not enough balance");
 
         if (token_ == address(0)) {
             destination_.call{value: amount_, gas: _gasLimit}("");
@@ -154,7 +154,7 @@ contract NFTVaultFactory is Ownable, Payable, IVaultConfig {
     ) public onlyOwner {
         require(
             destination_ != address(0),
-            "C98Vault: destination is zero address"
+            "NFTVault: destination is zero address"
         );
 
         IERC721(token_).transferFrom(address(this), destination_, tokenId_);
@@ -174,7 +174,7 @@ contract NFTVaultFactory is Ownable, Payable, IVaultConfig {
     ) public onlyOwner {
         require(
             destination_ != address(0),
-            "C98Vault: destination is zero address"
+            "NFTVault: destination is zero address"
         );
 
         IERC1155(token_).safeTransferFrom(address(this), destination_, tokenId_, amount, "");
